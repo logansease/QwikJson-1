@@ -9,24 +9,7 @@
 #import <Foundation/Foundation.h>
 #import "NSArrayDictionary+QJson.h"
 
-
-//these are properties that are declared on all objects. Since we don't want to pass them into the api
-//they are always transient. If you wish to pass one of these variables in, simply rename the field using
-//the apiToObjectMapping method
-#define kDefaultTransientProperties @[@"superclass", @"hash", @"debugDescription", @"description", @"serializeNulls"]
-
-typedef enum NullSerializationSetting : NSUInteger
-{
-    kNullSerializationSettingDefault = 0, kNullSerializationSettingSerialize, kNullSerializationSettingDoNotSerialize
-} NullSerializationSetting;
-
-@interface QwikJson : NSObject//<NSCoding>
-
-//these properties will tell us whether to serialize nulls.
-+ (bool) serializeNullsByDefault;
-+ (void) setSerializeNullsByDefault:(bool)val;
-@property NullSerializationSetting serializeNulls;
-
+@interface QwikJson<NSObject>//<NSCoding>
 //note in order for serialization to work, I am moving all properties to the specific class
 //and leaving all, including the ID out of the base class.
 //@property (nonatomic, strong) NSString* id;
@@ -54,7 +37,7 @@ typedef enum NullSerializationSetting : NSUInteger
 -(void)writeObjectFrom:(NSDictionary*)inputDictionary forKey:(NSString*)key toProperty:(NSString*)property;
 
 //override in subclass to specify a new key or perform some custom action on serialize
--(void)serializeObject:(NSObject*)object withApiKey:(NSString*)apiKey fromKey:(NSString*)objectKey toDictionary:(NSMutableDictionary*)dictionary;
+-(void)serializeObject:(NSObject*)object withKey:(NSString*)key toDictionary:(NSMutableDictionary*)dictionary;
 /**
  * Override this in your subclasses to allow for any special data types to be set into the object,
  * This is necessary for any date fields
@@ -70,12 +53,6 @@ typedef enum NullSerializationSetting : NSUInteger
 //initilization helpers
 +(id)testObject; //empty object
 +(id)objectWithId:(NSString*)objectId; //empty object with id=objectId
-
-//override this method to specify field renaming mappings
-+(NSDictionary<NSString*,NSString*>*)apiToObjectMapping;
-
-//return field names here that should not be written during serialization
-+(NSArray<NSString*>*)transientProperties;
 
 @end
 
@@ -98,7 +75,6 @@ typedef enum NullSerializationSetting : NSUInteger
 -(id)initWithDate:(NSDate*)date;
 //use this to customize the date format
 +(void)setDateFormat:(NSString*)format;
-+(void)setAlternateDateFormats:(NSArray<NSString*>*)formats;
 @property(nonatomic,strong)NSDate * date;
 @end
 
@@ -107,7 +83,6 @@ typedef enum NullSerializationSetting : NSUInteger
 -(id)initWithDate:(NSDate*)date;
 //use this to customize the date format
 +(void)setDateFormat:(NSString*)format;
-+(void)setAlternateDateFormats:(NSArray<NSString*>*)formats;
 @property(nonatomic,strong)NSDate * date;
 @end
 
@@ -117,7 +92,6 @@ typedef enum NullSerializationSetting : NSUInteger
 -(id)initWithDBDate:(DBDate*)dbDate andDBTime:(DBTime*)dbTime;
 //use this to customize the date format
 +(void)setDateFormat:(NSString*)format;
-+(void)setAlternateDateFormats:(NSArray<NSString*>*)formats;
 @property(nonatomic,strong)NSDate * date;
 @end
 

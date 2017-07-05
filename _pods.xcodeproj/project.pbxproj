@@ -567,7 +567,6 @@
 			baseConfigurationReference = 163F631C252DF755E09F018BF7C80A59 /* QwikJson.xcconfig */;
 			buildSettings = {
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				INFOPLIST_FILE = "$(SRCROOT)/Target Support Files/QwikJson/Info.plist";
 				PRODUCT_NAME = QwikJson;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -713,7 +712,6 @@
 			baseConfigurationReference = 163F631C252DF755E09F018BF7C80A59 /* QwikJson.xcconfig */;
 			buildSettings = {
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				INFOPLIST_FILE = "$(SRCROOT)/Target Support Files/QwikJson/Info.plist";
 				PRODUCT_NAME = QwikJson;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;

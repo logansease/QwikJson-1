@@ -1,25 +1,18 @@
 //
-//  QwikJson.m
+//  QwikJsonManagedObject.m
 //  EZWaves
 //
 //  Created by Logan Sease on 11/19/14.
 //  Copyright (c) 2014 Qonceptual. All rights reserved.
 //
 
-#import "QwikJson.h"
+#import "QwikJsonManagedObject.h"
 #import <objc/runtime.h>
 
 
-@implementation QwikJson
+@implementation QwikJsonManagedObject
 
-
-static bool _serializeNullsByDefault;
-+ (bool) serializeNullsByDefault
-{ @synchronized(self) { return _serializeNullsByDefault; } }
-+ (void) setSerializeNullsByDefault:(bool)val
-{ @synchronized(self) { _serializeNullsByDefault = val; } }
-                                         
- /*
+/*
  * create a test object. This is used by the test data service. override this in your subclass
  */
 +(id)testObject
@@ -43,7 +36,7 @@ static bool _serializeNullsByDefault;
 
 #pragma mark setup
 
-+(NSDictionary<NSString*,NSString*>*)apiToObjectMapping
++(NSDictionary<NSString*,NSString*>*)apiToObjectMapping;
 {
     //this should be overridden in the subclass
     return nil;
@@ -54,8 +47,6 @@ static bool _serializeNullsByDefault;
     //this should be overridden in the subclass
     return nil;
 }
-
-
 
 #pragma mark serialization Helpers
 
@@ -68,30 +59,27 @@ static bool _serializeNullsByDefault;
 -(void)setValue:(id)value forKey:(NSString *)key
 {
     @try{
-    //remove any null values
-    if([value isKindOfClass:[NSArray class]])
-    {
-        NSMutableArray * newArray = [NSMutableArray array];
-        for(NSObject * obj in (NSArray*)value)
+        //remove any null values
+        if([value isKindOfClass:[NSArray class]])
         {
-            if(obj != nil && ![obj isKindOfClass:[NSNull class]])
+            NSMutableArray * newArray = [NSMutableArray array];
+            for(NSObject * obj in (NSArray*)value)
             {
-                [newArray addObject:obj];
+                if(obj != nil && ![obj isKindOfClass:[NSNull class]])
+                {
+                    [newArray addObject:obj];
+                }
             }
+            
+            [super setValue:newArray forKey:key];
         }
-        
-        [super setValue:newArray forKey:key];
-    }
-    else{
-        [super setValue:value forKey:key];
-    }
+        else{
+            [super setValue:value forKey:key];
+        }
     }
     @catch(NSException * e)
     {
-        if([self respondsToSelector:NSSelectorFromString(key)])
-        {
-            NSLog(@"Error Setting %@: %@", key, e);
-        }
+        NSLog(@"Error Setting %@: %@", key, e);
     }
     
 }
@@ -228,7 +216,7 @@ static bool _serializeNullsByDefault;
     }
     
     //if we are supposed to ignore this field, do not serialize it
-    if([[[self class] transientProperties] containsObject:renamedKey] || [kDefaultTransientProperties containsObject:renamedKey])
+    if([[[self class] transientProperties] containsObject:renamedKey])
     {
         return;
     }
@@ -236,7 +224,7 @@ static bool _serializeNullsByDefault;
     //if this object is a serializable object, serialize it and add it to the dictionary
     if([[self valueForKey:key] respondsToSelector:@selector(toDictionary)])
     {
-        [self serializeObject:[[self valueForKey:key]toDictionary] withApiKey:renamedKey fromKey:key toDictionary:dict];
+        [self serializeObject:[[self valueForKey:key]toDictionary] withKey:renamedKey toDictionary:dict];
     }
     
     //if this is an array of db objects that is not empty then serialize the array and set it
@@ -248,47 +236,32 @@ static bool _serializeNullsByDefault;
         {
             [serializedArray addObject:[nonSerializedObject toDictionary]];
         }
-        [self serializeObject:serializedArray withApiKey:renamedKey fromKey:key toDictionary:dict];
+        [self serializeObject:serializedArray withKey:renamedKey toDictionary:dict];
     }
     
     //if this is a specialized dbField object as defined by implementing the dbField protocol, such as DBDate
     //use the protocol conversion methods to convert and save the value
     else if([[self valueForKey:key] respondsToSelector:@selector(toDbFormattedString)])
     {
-        [self serializeObject:[[self valueForKey:key]toDbFormattedString] withApiKey:renamedKey fromKey:key toDictionary:dict];
+        [self serializeObject:[[self valueForKey:key]toDbFormattedString]  withKey:renamedKey toDictionary:dict];
     }
     
     //otherwise just set it
     else if([self valueForKey:key])
     {
-        [self serializeObject:[self valueForKey:key] withApiKey:renamedKey fromKey:key toDictionary:dict];
-    }
-    
-    //handle setting serializing nulls
-    else if([self valueForKey:key] == nil || [self valueForKey:key] == [NSNull null])
-    {
-        if((self.serializeNulls == kNullSerializationSettingDefault && QwikJson.serializeNullsByDefault == YES) || self.serializeNulls == kNullSerializationSettingSerialize )
-        {
-            [self serializeObject:[self valueForKey:key] withApiKey:renamedKey fromKey:key toDictionary:dict];
-        }
+        [self serializeObject:[self valueForKey:key] withKey:renamedKey toDictionary:dict];
     }
 }
 
 //this exists so that a subclass might override this and specify a new key or perform some custom action.
--(void)serializeObject:(NSObject*)object withApiKey:(NSString*)apiKey fromKey:(NSString*)objectKey toDictionary:(NSMutableDictionary*)dictionary
+-(void)serializeObject:(NSObject*)object withKey:(NSString*)key toDictionary:(NSMutableDictionary*)dictionary
 {
-    
-    if(object == nil)
-    {
-        object = [NSNull null];
-    }
-    
     @try{
-        [dictionary setObject:object forKey:apiKey];
+        [dictionary setObject:object forKey:key];
     }
     @catch(NSException * e)
     {
-        NSLog(@"Error Setting %@: %@",apiKey,e);
+        NSLog(@"Error Setting %@: %@",key,e);
     }
 }
 
@@ -332,7 +305,7 @@ static bool _serializeNullsByDefault;
 {
     @try{
         QwikJson* object = [[[self class] alloc] init];
-    
+        
         for(NSString * key in inputDictionary.allKeys)
         {
             [object writeObjectFrom:inputDictionary forKey:key toProperty:key];
@@ -352,7 +325,6 @@ static bool _serializeNullsByDefault;
  */
 -(void)writeObjectFrom:(NSDictionary*)inputDictionary forKey:(NSString*)key toProperty:(NSString*)property
 {
-    
     //see if we need to rename our key
     NSDictionary * nameMappings = [[self class]apiToObjectMapping];
     NSString * renamedKey = key;
@@ -429,7 +401,7 @@ static bool _serializeNullsByDefault;
         //which can be common
         //NSLog(@"There was an error parsing %@ with key %@, error = %@",[objectClass description], key, exception.description);
     }
-
+    
 }
 
 /**
@@ -522,260 +494,4 @@ static bool _serializeNullsByDefault;
     return [super isEqual:other];
 }
 
-
 @end
-
-
-
-#pragma mark DB Field Implementations
-//this class represents a date time formatted like 2015-01-01T10:15:30 in UTC
-@implementation DBDateTime
-
-static NSString * dbDateTimeFormat = @"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
-static NSArray<NSString*>* alternateDateFormats = nil;
-
-+(void)setDateFormat:(NSString*)format
-{
-    dbDateTimeFormat = format;
-}
-+(void)setAlternateDateFormats:(NSArray<NSString*>*)formats
-{
-    alternateDateFormats = formats;
-}
-
-
-+(id)objectFromDbString:(NSString*)dbString
-{
-    NSDateFormatter * formatter = [[NSDateFormatter alloc]init];
-    [formatter setDateFormat:dbDateTimeFormat];
-    //[formatter setTimeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]];
-    NSDate * date = [formatter dateFromString:dbString];
-    
-    //if the primary formatter failed, try alternate formats
-    if(date == nil && alternateDateFormats)
-    {
-        for(NSString * format in alternateDateFormats)
-        {
-            [formatter setDateFormat:format];
-            date = [formatter dateFromString:dbString];
-            if(date != nil)
-            {
-                break;
-            }
-        }
-    }
-    
-    DBDateTime * dbDate = [[DBDateTime alloc]initWithDate:date];
-    return dbDate;
-}
--(NSString*)toDbFormattedString
-{
-    NSDateFormatter * formatter = [[NSDateFormatter alloc]init];
-    [formatter setDateFormat:dbDateTimeFormat];
-    //[formatter setTimeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]];
-    return [formatter stringFromDate:self.date];
-}
--(NSString*)displayString
-{
-    NSDateFormatter * displayFormatter = [[NSDateFormatter alloc]init];
-    [displayFormatter setDateFormat:@"M/dd/yyyy h:mm a"];
-    return [displayFormatter stringFromDate:self.date];
-}
-
--(id)initWithDate:(NSDate*)date
-{
-    if([super init] && date)
-    {
-        self.date = date;
-        return self;
-    }
-    return nil;
-}
-
--(id)initWithDBDate:(DBDate*)dbDate andDBTime:(DBTime*)dbTime
-{
-    NSDateFormatter * dateFormatter = [[NSDateFormatter alloc]init];
-    [dateFormatter setDateFormat:@"MM/dd/yyyy"];
-    
-    NSDateFormatter * timeFormatter = [[NSDateFormatter alloc]init];
-    [timeFormatter setDateFormat:@"HH:mm:ss"];
-    
-    NSString * combinedString = [NSString stringWithFormat:@"%@ %@",[dateFormatter stringFromDate:dbDate.date],[timeFormatter stringFromDate:dbTime.date]];
-    
-    NSDateFormatter * combinedFormatter = [[NSDateFormatter alloc]init];
-    [combinedFormatter setDateFormat:@"MM/dd/yyyy HH:mm:ss"];
-    
-    NSDate * combinedDate = [combinedFormatter dateFromString:combinedString];
-    
-    return [self initWithDate:combinedDate];
-}
-
-
-@end
-
-//this class represents a date formatted like 2015-MM-DD
-@implementation DBDate
-
-static NSString * dbDateFormat = @"yyyy-MM-dd";
-
-+(void)setDateFormat:(NSString*)format
-{
-    dbDateFormat = format;
-}
-+(void)setAlternateDateFormats:(NSArray<NSString*>*)formats
-{
-    alternateDateFormats = formats;
-}
-
-+(id)objectFromDbString:(NSString*)dbString
-{
-    NSDateFormatter * formatter = [[NSDateFormatter alloc]init];
-    [formatter setDateFormat:dbDateFormat];
-    NSDate * date = [formatter dateFromString:dbString];
-    
-    //if the primary formatter failed, try alternate formats
-    if(date == nil && alternateDateFormats)
-    {
-        for(NSString * format in alternateDateFormats)
-        {
-            [formatter setDateFormat:format];
-            date = [formatter dateFromString:dbString];
-            if(date != nil)
-            {
-                break;
-            }
-        }
-    }
-    
-    DBDate * dbDate = [[DBDate alloc]initWithDate:date];
-    return dbDate;
-}
--(NSString*)toDbFormattedString
-{
-    NSDateFormatter * formatter = [[NSDateFormatter alloc]init];
-    [formatter setDateFormat:dbDateFormat];
-    return [formatter stringFromDate:self.date];
-}
--(NSString*)displayString
-{
-    NSDateFormatter * displayFormatter = [[NSDateFormatter alloc]init];
-    [displayFormatter setDateFormat:@"M/dd/yyyy"];
-    return [displayFormatter stringFromDate:self.date];
-}
-
--(id)initWithDate:(NSDate*)date
-{
-    if([super init] && date)
-    {
-        self.date = date;
-        return self;
-    }
-    return nil;
-}
-
-@end
-
-//this class represents a time formatted "HH:MM:SS" in UTC
-@implementation DBTime
-
-static NSString * dbTimeFormat = @"HH:mm:ss";
-+(void)setDateFormat:(NSString*)format
-{
-    dbTimeFormat = format;
-}
-+(void)setAlternateDateFormats:(NSArray<NSString*>*)formats
-{
-    alternateDateFormats = formats;
-}
-
-+(id)objectFromDbString:(NSString*)dbString
-{
-    NSDateFormatter * formatter = [[NSDateFormatter alloc]init];
-    [formatter setDateFormat:dbTimeFormat];
-    //[formatter setTimeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]];
-    NSDate * date = [formatter dateFromString:dbString];
-    
-    //if the primary formatter failed, try alternate formats
-    if(date == nil && alternateDateFormats)
-    {
-        for(NSString * format in alternateDateFormats)
-        {
-            [formatter setDateFormat:format];
-            date = [formatter dateFromString:dbString];
-            if(date != nil)
-            {
-                break;
-            }
-        }
-    }
-    
-    DBTime * dbDate = [[DBTime alloc]initWithDate:date];
-    return dbDate;
-}
--(NSString*)toDbFormattedString
-{
-    NSDateFormatter * formatter = [[NSDateFormatter alloc]init];
-    [formatter setDateFormat:dbTimeFormat];
-    //[formatter setTimeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]];
-    return [formatter stringFromDate:self.date];
-}
--(NSString*)displayString
-{
-    NSDateFormatter * displayFormatter = [[NSDateFormatter alloc]init];
-    [displayFormatter setDateFormat:@"h:mm a"];
-    return [displayFormatter stringFromDate:self.date];
-}
--(id)initWithDate:(NSDate*)date
-{
-    if([super init] && date)
-    {
-        self.date = date;
-        return self;
-    }
-    return nil;
-}
-
-@end
-
-//this class represents a time stamp formatted like 14128309481 in UTC
-@implementation DBTimeStamp
-+(id)objectFromDbString:(NSString*)dbString
-{
-    if ((dbString == nil) || ([dbString isEqual:[NSNull null]])) return nil;
-    NSDate * date = [[NSDate alloc] initWithTimeIntervalSince1970:[dbString doubleValue] * 0.001f];
-    
-    //convert to local time
-    //NSTimeZone *tz = [NSTimeZone defaultTimeZone];
-    //NSInteger seconds = [tz secondsFromGMTForDate: date];
-    NSDate * newDate = date;//[NSDate dateWithTimeInterval: seconds sinceDate: date];
-    DBTimeStamp * dbDate = [[DBTimeStamp alloc]initWithDate:newDate];
-    return dbDate;
-}
--(NSString*)toDbFormattedString
-{
-    //NSTimeZone *tz = [NSTimeZone defaultTimeZone];
-    //NSInteger seconds = -[tz secondsFromGMTForDate: self.date];
-    //NSDate * utcDate = [NSDate dateWithTimeInterval: seconds sinceDate: self.date];
-    
-    NSTimeInterval interval = [self.date timeIntervalSince1970];//[utcDate timeIntervalSince1970];
-    NSString *string = [NSString stringWithFormat:@"%.0f", interval * 1000.0f];
-    return string;
-}
--(NSString*)displayString
-{
-    NSDateFormatter * displayFormatter = [[NSDateFormatter alloc]init];
-    [displayFormatter setDateFormat:@"h:mm a"];
-    return [displayFormatter stringFromDate:self.date];
-}
--(id)initWithDate:(NSDate*)date
-{
-    if([super init] && date)
-    {
-        self.date = date;
-        return self;
-    }
-    return nil;
-}
-
-@end
-
